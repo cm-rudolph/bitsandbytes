@@ -21,8 +21,8 @@ public class Main {
         Collection<Puzzle.Solution> solutions = collectionFuture.get();
         Instant done = Instant.now();
 
-        LOGGER.info("Initialization took {}ms", Duration.between(start, initialized));
-        LOGGER.info("Solving took {}ms", Duration.between(initialized, done));
+        LOGGER.info("Initialization took {}", Duration.between(start, initialized));
+        LOGGER.info("Solving took {}", Duration.between(initialized, done));
         LOGGER.info("Found {} solutions.", solutions.size());
         int i = 0;
         for (Puzzle.Solution solution : solutions) {
