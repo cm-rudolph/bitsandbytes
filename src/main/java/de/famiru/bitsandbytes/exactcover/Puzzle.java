@@ -3,9 +3,7 @@ package de.famiru.bitsandbytes.exactcover;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
@@ -283,14 +281,6 @@ public class Puzzle {
             this.entries = entries;
         }
 
-        public Entry getEntry(int x, int y) {
-            if (x < 0 || x > 3 || y < 0 || y > 3) {
-                throw new IllegalArgumentException("x and y must be between 0 and 3");
-            }
-
-            return entries[x + y * 4];
-        }
-
         @Override
         public String toString() {
             String separator = "            |             |             |            \n";
@@ -314,14 +304,6 @@ public class Puzzle {
     }
 
     public record Entry(int value, int numberOfRotations) {
-        public int getValue() {
-            return value;
-        }
-
-        public int getNumberOfRotations() {
-            return numberOfRotations;
-        }
-
         @Override
         public String toString() {
             return toBinaryString(value) + " " + numberOfRotations + "x";
