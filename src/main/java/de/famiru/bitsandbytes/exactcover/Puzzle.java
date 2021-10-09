@@ -11,10 +11,10 @@ public class Puzzle {
     private static final Logger LOGGER = LogManager.getLogger(Puzzle.class);
 
     private static final int[] PIECES = new int[]{
-            0b11111111, 0b10101010, 0b11111101, 0b11001101,
-            0b10110100, 0b10101100, 0b11010111, 0b01011110,
-            0b01000100, 0b01010111, 0b00101001, 0b00011000,
-            0b11110101, 0b00000000, 0b00010011, 0b10000000
+            0b11111111, 0b10101010, 0b11111101, 0b11001100,
+            0b10110100, 0b10101100, 0b01111101, 0b01011110,
+            0b01000100, 0b01110101, 0b10010010, 0b00011000,
+            0b11110101, 0b00000000, 0b00010011, 0b00001000
     };
     private final MatrixEntry head;
     private final MatrixEntry[] columnHeads; // 80 nose constraints, (80) 16 field constraints,
@@ -105,6 +105,7 @@ public class Puzzle {
         createPieceChoices();
         createBorderStickChoice();
         createOptionalBorderNoseChoices();
+        //createOptionalInnerNoseChoices();
     }
 
     private void createConstraintColumnHeads() {
@@ -129,7 +130,7 @@ public class Puzzle {
             int value = PIECES[i];
             createPieceChoicesForValue(value, i);
 
-            int rotatedValue = rotateValue(value, 1);
+            /*int rotatedValue = rotateValue(value, 1);
             if (rotatedValue == value) continue;
             createPieceChoicesForValue(rotatedValue | 1 << 8, i);
 
@@ -138,7 +139,7 @@ public class Puzzle {
             createPieceChoicesForValue(rotatedValue | 2 << 8, i);
 
             rotatedValue = rotateValue(value, 3);
-            createPieceChoicesForValue(rotatedValue | 3 << 8, i);
+            createPieceChoicesForValue(rotatedValue | 3 << 8, i);*/
         }
     }
 
@@ -231,6 +232,37 @@ public class Puzzle {
             createMatrixEntry(getNoseConstraintColumnHead(i, 3, 5), null);
             createMatrixEntry(getNoseConstraintColumnHead(0, i, 6), null);
             createMatrixEntry(getNoseConstraintColumnHead(0, i, 7), null);
+        }
+    }
+
+    private void createOptionalInnerNoseChoices() {
+        Set<MatrixEntry> allHeads = new HashSet<>(48);
+        for (int x = 0; x < 4; x++) {
+            for (int y = 0; y < 4; y++) {
+                if (y > 0) {
+                    createMatrixEntryIfNotPresent(allHeads, x, y, 0);
+                    createMatrixEntryIfNotPresent(allHeads, x, y, 1);
+                }
+                if (x < 3) {
+                    createMatrixEntryIfNotPresent(allHeads, x, y, 2);
+                    createMatrixEntryIfNotPresent(allHeads, x, y, 3);
+                }
+                if (y < 3) {
+                    createMatrixEntryIfNotPresent(allHeads, x, y, 4);
+                    createMatrixEntryIfNotPresent(allHeads, x, y, 5);
+                }
+                if (x > 0) {
+                    createMatrixEntryIfNotPresent(allHeads, x, y, 6);
+                    createMatrixEntryIfNotPresent(allHeads, x, y, 7);
+                }
+            }
+        }
+    }
+
+    private void createMatrixEntryIfNotPresent(Set<MatrixEntry> presentHeads, int x, int y, int idx) {
+        MatrixEntry head = getNoseConstraintColumnHead(x, y, idx);
+        if (presentHeads.add(head)) {
+            createMatrixEntry(head, null);
         }
     }
 
