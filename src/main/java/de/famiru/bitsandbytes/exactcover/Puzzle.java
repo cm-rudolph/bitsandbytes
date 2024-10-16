@@ -16,14 +16,14 @@ public class Puzzle {
             0b01000100, 0b01010111, 0b00101001, 0b00011000,
             0b11110101, 0b00000000, 0b00010011, 0b10000000
     };
-    private final MatrixEntry head;
-    private final MatrixEntry[] columnHeads; // 80 nose constraints, (80) 16 field constraints,
+    private final MatrixEntry<PieceInfo> head;
+    private final MatrixEntry<PieceInfo>[] columnHeads; // 80 nose constraints, (80) 16 field constraints,
     // (96) 16 piece used constraints, (112) 1 border stick constraint
     private final FutureTask<Collection<Solution>> futureTask;
 
     public Puzzle() {
         futureTask = new FutureTask<>(this::solve);
-        head = new MatrixEntry("Head");
+        head = new MatrixEntry<>();
         columnHeads = new MatrixEntry[113];
         initializeMatrix();
     }
@@ -45,8 +45,8 @@ public class Puzzle {
 
     private Collection<Solution> solve() {
         List<Solution> result = new ArrayList<>();
-        List<MatrixEntry> solution = new ArrayList<>(PIECES.length);
-        MatrixEntry p = selectNextColumn();
+        List<MatrixEntry<PieceInfo>> solution = new ArrayList<>(PIECES.length);
+        MatrixEntry<PieceInfo> p = selectNextColumn();
         while (head.getRight() != head) {
             p = p.getLower();
             if (p.getColumnHeader() != p) {
@@ -74,17 +74,17 @@ public class Puzzle {
         return List.copyOf(result);
     }
 
-    private Solution convertSolution(List<MatrixEntry> solution) {
+    private Solution convertSolution(List<MatrixEntry<PieceInfo>> solution) {
         Entry[] result = new Entry[16];
-        for (MatrixEntry matrixEntry : solution) {
-            if (matrixEntry.getValue() >= 0) {
-                int x = matrixEntry.getValue() >> 10 & 0b11;
-                int y = matrixEntry.getValue() >> 12 & 0b11;
-                int rotations = matrixEntry.getValue() >> 8 & 0b11;
+        for (MatrixEntry<PieceInfo> matrixEntry : solution) {
+            if (matrixEntry.getData().value() >= 0) {
+                int x = matrixEntry.getData().value() >> 10 & 0b11;
+                int y = matrixEntry.getData().value() >> 12 & 0b11;
+                int rotations = matrixEntry.getData().value() >> 8 & 0b11;
                 if (result[x + y * 4] != null) {
                     LOGGER.error("Double entry found!");
                 }
-                int value = matrixEntry.getValue() & 0b11111111;
+                int value = matrixEntry.getData().value() & 0b11111111;
                 int backRotatedValue = rotateValue(value, (4 - rotations) % 4);
                 result[x + y * 4] = new Entry(backRotatedValue, rotations);
             }
@@ -92,8 +92,8 @@ public class Puzzle {
         return new Solution(result);
     }
 
-    private MatrixEntry backtrack(List<MatrixEntry> solution) {
-        MatrixEntry entry = solution.remove(solution.size() - 1);
+    private MatrixEntry<PieceInfo> backtrack(List<MatrixEntry<PieceInfo>> solution) {
+        MatrixEntry<PieceInfo> entry = solution.remove(solution.size() - 1);
         entry.reinsert();
 
         return entry;
@@ -119,7 +119,7 @@ public class Puzzle {
             } else {
                 info = "Border sticks";
             }
-            columnHeads[i] = new MatrixEntry(info);
+            columnHeads[i] = new MatrixEntry<>();
             head.insertBefore(columnHeads[i]);
         }
     }
@@ -157,10 +157,10 @@ public class Puzzle {
 
     private void createPieceChoiceForValue(int value, int pieceIdx, int x, int y) {
         int valueWithLocation = value | x << 10 | y << 12;
-        MatrixEntry pieceUsedColumnHead = columnHeads[96 + pieceIdx];
-        MatrixEntry firstEntry = createMatrixEntry(pieceUsedColumnHead, null, valueWithLocation);
+        MatrixEntry<PieceInfo> pieceUsedColumnHead = columnHeads[96 + pieceIdx];
+        MatrixEntry<PieceInfo> firstEntry = createMatrixEntry(pieceUsedColumnHead, null, valueWithLocation);
 
-        MatrixEntry fieldUsedColumnHead = columnHeads[80 + x + y * 4];
+        MatrixEntry<PieceInfo> fieldUsedColumnHead = columnHeads[80 + x + y * 4];
         createMatrixEntry(fieldUsedColumnHead, firstEntry, valueWithLocation);
 
         int bitmask = 0b10000000;
@@ -174,7 +174,7 @@ public class Puzzle {
 
     private void createBorderStickChoice() {
         // border sticks are necessary
-        MatrixEntry firstEntry = createMatrixEntry(columnHeads[112], null);
+        MatrixEntry<PieceInfo> firstEntry = createMatrixEntry(columnHeads[112], null);
         createMatrixEntry(getNoseConstraintColumnHead(0, 0, 1), firstEntry);
         createMatrixEntry(getNoseConstraintColumnHead(0, 0, 7), firstEntry);
         createMatrixEntry(getNoseConstraintColumnHead(3, 0, 1), firstEntry);
@@ -185,7 +185,7 @@ public class Puzzle {
         createMatrixEntry(getNoseConstraintColumnHead(3, 3, 5), firstEntry);
     }
 
-    private MatrixEntry getNoseConstraintColumnHead(int x, int y, int idx) {
+    private MatrixEntry<PieceInfo> getNoseConstraintColumnHead(int x, int y, int idx) {
         return columnHeads[getNoseConstraintColumnHeadIndex(x, y, idx)];
     }
 
@@ -234,11 +234,11 @@ public class Puzzle {
         }
     }
 
-    private MatrixEntry createMatrixEntry(MatrixEntry columnHead, MatrixEntry choice) {
+    private MatrixEntry<PieceInfo> createMatrixEntry(MatrixEntry<PieceInfo> columnHead, MatrixEntry<PieceInfo> choice) {
         return createMatrixEntry(columnHead, choice, -1);
     }
 
-    private MatrixEntry createMatrixEntry(MatrixEntry columnHead, MatrixEntry choice, int value) {
+    private MatrixEntry<PieceInfo> createMatrixEntry(MatrixEntry<PieceInfo> columnHead, MatrixEntry<PieceInfo> choice, int value) {
         String info;
         if (value == -1) {
             info = "Optional";
@@ -251,7 +251,7 @@ public class Puzzle {
             info = "x = " + x + "; y = " + y + "; "
                     + rotations + " rotations; value = " + toBinaryString(backRotatedValue);
         }
-        MatrixEntry e = new MatrixEntry(info, value, columnHead);
+        MatrixEntry<PieceInfo> e = new MatrixEntry<>(new PieceInfo(info, value), columnHead);
         columnHead.insertAbove(e);
         if (choice != null) {
             choice.insertBefore(e);
@@ -260,13 +260,13 @@ public class Puzzle {
         return e;
     }
 
-    private MatrixEntry selectNextColumn() {
-        MatrixEntry p = head.getRight();
-        MatrixEntry bestMatch = p;
-        int bestRowCount = p.getValue();
+    private MatrixEntry<PieceInfo> selectNextColumn() {
+        MatrixEntry<PieceInfo> p = head.getRight();
+        MatrixEntry<PieceInfo> bestMatch = p;
+        int bestRowCount = p.getRowCount();
         while (p != head && bestRowCount > 1) {
-            if (p.getValue() < bestRowCount) {
-                bestRowCount = p.getValue();
+            if (p.getRowCount() < bestRowCount) {
+                bestRowCount = p.getRowCount();
                 bestMatch = p;
             }
             p = p.getRight();

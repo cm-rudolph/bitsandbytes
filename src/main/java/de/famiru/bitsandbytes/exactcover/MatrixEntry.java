@@ -1,65 +1,70 @@
 package de.famiru.bitsandbytes.exactcover;
 
-class MatrixEntry {
-    private final MatrixEntry columnHeader;
-    private final String info;
-    private MatrixEntry left;
-    private MatrixEntry right;
-    private MatrixEntry upper;
-    private MatrixEntry lower;
-    private int value;
+import java.util.Objects;
 
-    MatrixEntry(String info) {
-        value = 0;
+import static java.util.Objects.requireNonNull;
+
+class MatrixEntry<T> {
+    private final T data;
+    private final MatrixEntry<T> columnHeader;
+    private MatrixEntry<T> left;
+    private MatrixEntry<T> right;
+    private MatrixEntry<T> upper;
+    private MatrixEntry<T> lower;
+    private int rowCount;
+
+    // constructor for column header entries
+    MatrixEntry() {
+        rowCount = 0;
         left = this;
         right = this;
         upper = this;
         lower = this;
         columnHeader = this;
-        this.info = info;
+        this.data = null;
     }
 
-    MatrixEntry(String info, int value, MatrixEntry columnHeader) {
+    // constructor for regular entries
+    MatrixEntry(T data, MatrixEntry<T> columnHeader) {
         left = this;
         right = this;
         upper = this;
         lower = this;
-        this.value = value;
-        this.columnHeader = columnHeader;
-        this.info = info;
+        this.columnHeader = requireNonNull(columnHeader);
+        this.data = requireNonNull(data);
     }
 
-    void insertBefore(MatrixEntry entry) {
+    void insertBefore(MatrixEntry<T> entry) {
         entry.right = this;
         entry.left = left;
         left.right = entry;
         left = entry;
     }
 
-    public void insertAbove(MatrixEntry entry) {
+    public void insertAbove(MatrixEntry<T> entry) {
         entry.lower = this;
         entry.upper = upper;
         upper.lower = entry;
         upper = entry;
-        columnHeader.value++;
+        columnHeader.rowCount++;
     }
 
-    public MatrixEntry getRight() {
+    public MatrixEntry<T> getRight() {
         return right;
     }
 
-    public MatrixEntry getColumnHeader() {
+    public MatrixEntry<T> getColumnHeader() {
         return columnHeader;
     }
 
     private boolean removeRow() {
         boolean result = true;
-        MatrixEntry p = this.right;
+        MatrixEntry<T> p = this.right;
         while (p != this) {
             p.upper.lower = p.lower;
             p.lower.upper = p.upper;
-            p.columnHeader.value--;
-            if (p.columnHeader.value == 0) result = false;
+            p.columnHeader.rowCount--;
+            if (p.columnHeader.rowCount == 0) result = false;
             p = p.right;
         }
         return result;
@@ -69,7 +74,7 @@ class MatrixEntry {
         boolean result = true;
         columnHeader.left.right = columnHeader.right;
         columnHeader.right.left = columnHeader.left;
-        MatrixEntry p = this.lower;
+        MatrixEntry<T> p = this.lower;
         while (p != this) {
             if (p != columnHeader)
                 if (!p.removeRow()) result = false;
@@ -80,7 +85,7 @@ class MatrixEntry {
 
     boolean removeEntry() {
         boolean result = true;
-        MatrixEntry p = this;
+        MatrixEntry<T> p = this;
         do {
             if (!p.removeCol()) result = false;
             p = p.right;
@@ -88,16 +93,16 @@ class MatrixEntry {
         return result;
     }
 
-    MatrixEntry getLower() {
+    MatrixEntry<T> getLower() {
         return lower;
     }
 
     private void reinsertRow() {
-        MatrixEntry p = this.right;
+        MatrixEntry<T> p = this.right;
         while (p != this) {
             p.upper.lower = p;
             p.lower.upper = p;
-            p.columnHeader.value++;
+            p.columnHeader.rowCount++;
             p = p.right;
         }
     }
@@ -105,7 +110,7 @@ class MatrixEntry {
     private void reinsertCol() {
         columnHeader.left.right = columnHeader;
         columnHeader.right.left = columnHeader;
-        MatrixEntry p = this.lower;
+        MatrixEntry<T> p = this.lower;
         while (p != this) {
             if (p != columnHeader)
                 p.reinsertRow();
@@ -114,19 +119,23 @@ class MatrixEntry {
     }
 
     void reinsert() {
-        MatrixEntry p = this;
+        MatrixEntry<T> p = this;
         do {
             p.reinsertCol();
             p = p.right;
         } while (p != this);
     }
 
-    int getValue() {
-        return value;
+    int getRowCount() {
+        return rowCount;
+    }
+
+    T getData() {
+        return data;
     }
 
     @Override
     public String toString() {
-        return info;
+        return Objects.requireNonNullElse(data, "Head").toString();
     }
 }
