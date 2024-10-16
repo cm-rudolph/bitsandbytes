@@ -46,32 +46,41 @@ public class Puzzle {
     private Collection<Solution> solve() {
         List<Solution> result = new ArrayList<>();
         List<MatrixEntry<PieceInfo>> solution = new ArrayList<>(PIECES.length);
-        MatrixEntry<PieceInfo> p = selectNextColumn();
-        while (head.getRight() != head) {
-            p = p.getLower();
-            if (p.getColumnHeader() != p) {
-                solution.add(p);
-                if (p.removeEntry()) {
-                    p = selectNextColumn();
-                } else {
-                    p = backtrack(solution);
-                }
-            } else {
-                if (solution.isEmpty()) {
-                    break;
-                }
-                p = backtrack(solution);
-            }
-            if (head.getRight() == head) {
-                result.add(convertSolution(solution));
-                if (result.size() % 10 == 0) {
-                    LOGGER.info("Found {} solutions so far.", result.size());
-                }
-                p = backtrack(solution);
-            }
-        }
+        search(result, solution);
 
         return List.copyOf(result);
+    }
+
+    private boolean search(List<Solution> solutions, List<MatrixEntry<PieceInfo>> solution) {
+        if (head.getRight() == head) {
+            solutions.add(convertSolution(solution));
+            if (solutions.size() % 10 == 0) {
+                LOGGER.info("Found {} solutions so far.", solutions.size());
+            }
+            return false;
+        }
+        MatrixEntry<PieceInfo> c = selectNextColumn();
+        c.coverColumn();
+        MatrixEntry<PieceInfo> r = c.getLower();
+        while (r != c) {
+            solution.add(r);
+            MatrixEntry<PieceInfo> j = r.getRight();
+            while (j != r) {
+                j.coverColumn();
+                j = j.getRight();
+            }
+            if (search(solutions, solution)) return true;
+            /*r = */solution.removeLast();
+            //c = r.getColumnHeader();
+            j = r.getLeft();
+            while (j != r) {
+                j.uncoverColumn();
+                j = j.getLeft();
+            }
+            r = r.getLower();
+        }
+        c.uncoverColumn();
+        return false;
     }
 
     private Solution convertSolution(List<MatrixEntry<PieceInfo>> solution) {
@@ -90,13 +99,6 @@ public class Puzzle {
             }
         }
         return new Solution(result);
-    }
-
-    private MatrixEntry<PieceInfo> backtrack(List<MatrixEntry<PieceInfo>> solution) {
-        MatrixEntry<PieceInfo> entry = solution.remove(solution.size() - 1);
-        entry.reinsert();
-
-        return entry;
     }
 
     private void initializeMatrix() {

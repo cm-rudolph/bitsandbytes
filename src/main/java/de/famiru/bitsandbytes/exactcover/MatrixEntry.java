@@ -49,81 +49,16 @@ class MatrixEntry<T> {
         columnHeader.rowCount++;
     }
 
+    public MatrixEntry<T> getLeft() {
+        return left;
+    }
+
     public MatrixEntry<T> getRight() {
         return right;
     }
 
-    public MatrixEntry<T> getColumnHeader() {
-        return columnHeader;
-    }
-
-    private boolean removeRow() {
-        boolean result = true;
-        MatrixEntry<T> p = this.right;
-        while (p != this) {
-            p.upper.lower = p.lower;
-            p.lower.upper = p.upper;
-            p.columnHeader.rowCount--;
-            if (p.columnHeader.rowCount == 0) result = false;
-            p = p.right;
-        }
-        return result;
-    }
-
-    private boolean removeCol() {
-        boolean result = true;
-        columnHeader.left.right = columnHeader.right;
-        columnHeader.right.left = columnHeader.left;
-        MatrixEntry<T> p = this.lower;
-        while (p != this) {
-            if (p != columnHeader)
-                if (!p.removeRow()) result = false;
-            p = p.lower;
-        }
-        return result;
-    }
-
-    boolean removeEntry() {
-        boolean result = true;
-        MatrixEntry<T> p = this;
-        do {
-            if (!p.removeCol()) result = false;
-            p = p.right;
-        } while (p != this);
-        return result;
-    }
-
     MatrixEntry<T> getLower() {
         return lower;
-    }
-
-    private void reinsertRow() {
-        MatrixEntry<T> p = this.right;
-        while (p != this) {
-            p.upper.lower = p;
-            p.lower.upper = p;
-            p.columnHeader.rowCount++;
-            p = p.right;
-        }
-    }
-
-    private void reinsertCol() {
-        columnHeader.left.right = columnHeader;
-        columnHeader.right.left = columnHeader;
-        MatrixEntry<T> p = this.lower;
-        while (p != this) {
-            if (p != columnHeader)
-                p.reinsertRow();
-            p = p.lower;
-        }
-    }
-
-    void reinsert() {
-        MatrixEntry<T> p = this;
-        do {
-            p.reinsertCol();
-            p = p.right;
-        } while (p != this);
     }
 
     int getRowCount() {
@@ -137,5 +72,37 @@ class MatrixEntry<T> {
     @Override
     public String toString() {
         return Objects.requireNonNullElse(data, "Head").toString();
+    }
+
+    public void coverColumn() {
+        columnHeader.right.left = columnHeader.left;
+        columnHeader.left.right = columnHeader.right;
+        MatrixEntry<T> i = columnHeader.lower;
+        while (i != columnHeader) {
+            MatrixEntry<T> j = i.right;
+            while (j != i) {
+                j.lower.upper = j.upper;
+                j.upper.lower = j.lower;
+                j.columnHeader.rowCount--;
+                j = j.right;
+            }
+            i = i.lower;
+        }
+    }
+
+    public void uncoverColumn() {
+        MatrixEntry<T> i = columnHeader.upper;
+        while (i != columnHeader) {
+            MatrixEntry<T> j = i.left;
+            while (j != i) {
+                j.columnHeader.rowCount++;
+                j.lower.upper = j;
+                j.upper.lower = j;
+                j = j.left;
+            }
+            i = i.upper;
+        }
+        columnHeader.right.left = columnHeader;
+        columnHeader.left.right = columnHeader;
     }
 }
