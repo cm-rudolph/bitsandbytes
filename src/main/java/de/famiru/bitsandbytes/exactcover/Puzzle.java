@@ -17,9 +17,10 @@ public class Puzzle {
     };
     //private final MatrixEntry<PieceInfo>[] columnHeads; // 80 nose constraints, (80) 16 field constraints,
     // (96) 16 piece used constraints, (112) 1 border stick constraint
-    private final Dlx<PieceInfo> dlx = new Dlx<>(113, 0, 1, true, 1000);
+    private final Dlx<PieceInfo> dlx;
 
     public Puzzle() {
+        dlx = new Dlx<>(113, getOptionalBorderNoseChoiceIndices(), 1, true, 1000);
         initializeMatrix();
     }
 
@@ -56,7 +57,6 @@ public class Puzzle {
     private void initializeMatrix() {
         createPieceChoices();
         createBorderStickChoice();
-        createOptionalBorderNoseChoices();
     }
 
     private void createPieceChoices() {
@@ -110,8 +110,13 @@ public class Puzzle {
     }
 
     private void createBorderStickChoice() {
-        // border sticks are necessary
-        List<Integer> indices = new ArrayList<>(List.of(
+        List<Integer> indices = new ArrayList<>(getBorderStickIndices());
+        indices.sort(Comparator.naturalOrder());
+        dlx.addChoice(new PieceInfo("border sticks", -1), indices);
+    }
+
+    private List<Integer> getBorderStickIndices() {
+        return List.of(
                 getNoseConstraintColumnHeadIndex(0, 0, 1),
                 getNoseConstraintColumnHeadIndex(0, 0, 7),
                 getNoseConstraintColumnHeadIndex(3, 0, 1),
@@ -120,10 +125,8 @@ public class Puzzle {
                 getNoseConstraintColumnHeadIndex(0, 3, 7),
                 getNoseConstraintColumnHeadIndex(3, 3, 3),
                 getNoseConstraintColumnHeadIndex(3, 3, 5),
-                112
-        ));
-        indices.sort(Comparator.naturalOrder());
-        dlx.addChoice(new PieceInfo("border sticks", -1), indices);
+                112 // "border stick is necessary" column
+        );
     }
 
     int getNoseConstraintColumnHeadIndex(int x, int y, int idx) {
@@ -156,18 +159,29 @@ public class Puzzle {
         }
     }
 
-    private void createOptionalBorderNoseChoices() {
-        // simply create all optional border nose choices - superfluous ones get removed at first step through
-        // border stick constraint
+    private Set<Integer> getOptionalBorderNoseChoiceIndices() {
+        List<Integer> borderStickIndices = getBorderStickIndices();
+        Set<Integer> result = new HashSet<>();
+
         for (int i = 0; i < 4; i++) {
-            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(i, 0, 0)));
-            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(i, 0, 1)));
-            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(3, i, 2)));
-            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(3, i, 3)));
-            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(i, 3, 4)));
-            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(i, 3, 5)));
-            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(0, i, 6)));
-            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(0, i, 7)));
+            addIfNotBorderStickIndex(i, 0, 0, borderStickIndices, result);
+            addIfNotBorderStickIndex(i, 0, 1, borderStickIndices, result);
+            addIfNotBorderStickIndex(3, i, 2, borderStickIndices, result);
+            addIfNotBorderStickIndex(3, i, 3, borderStickIndices, result);
+            addIfNotBorderStickIndex(i, 3, 4, borderStickIndices, result);
+            addIfNotBorderStickIndex(i, 3, 5, borderStickIndices, result);
+            addIfNotBorderStickIndex(0, i, 6, borderStickIndices, result);
+            addIfNotBorderStickIndex(0, i, 7, borderStickIndices, result);
+        }
+
+        return result;
+    }
+
+    private void addIfNotBorderStickIndex(int x, int y, int idx, List<Integer> borderStickIndices,
+                                             Set<Integer> optionalBorderNoseConstraintIndices) {
+        int constraintIndex = getNoseConstraintColumnHeadIndex(x, y, idx);
+        if (!borderStickIndices.contains(constraintIndex)) {
+            optionalBorderNoseConstraintIndices.add(constraintIndex);
         }
     }
 
