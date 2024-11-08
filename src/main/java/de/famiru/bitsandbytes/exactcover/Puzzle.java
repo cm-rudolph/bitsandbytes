@@ -1,11 +1,10 @@
 package de.famiru.bitsandbytes.exactcover;
 
+import de.famiru.dlx.Dlx;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.*;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 
 public class Puzzle {
     private static final Logger LOGGER = LogManager.getLogger(Puzzle.class);
@@ -16,15 +15,11 @@ public class Puzzle {
             0b01000100, 0b01010111, 0b00101001, 0b00011000,
             0b11110101, 0b00000000, 0b00010011, 0b10000000
     };
-    private final MatrixEntry<PieceInfo> head;
-    private final MatrixEntry<PieceInfo>[] columnHeads; // 80 nose constraints, (80) 16 field constraints,
+    //private final MatrixEntry<PieceInfo>[] columnHeads; // 80 nose constraints, (80) 16 field constraints,
     // (96) 16 piece used constraints, (112) 1 border stick constraint
-    private final FutureTask<Collection<Solution>> futureTask;
+    private final Dlx<PieceInfo> dlx = new Dlx<>(113, 0, 1, true, 1000);
 
     public Puzzle() {
-        futureTask = new FutureTask<>(this::solve);
-        head = new MatrixEntry<>();
-        columnHeads = new MatrixEntry[113];
         initializeMatrix();
     }
 
@@ -36,64 +31,21 @@ public class Puzzle {
         return s;
     }
 
-    public Future<Collection<Solution>> calculateSolution() {
-        if (!futureTask.isDone()) {
-            new Thread(futureTask).start();
-        }
-        return futureTask;
+    public Collection<Solution> calculateSolution() {
+        return List.of(convertSolution(dlx.solve().getFirst()));
     }
 
-    private Collection<Solution> solve() {
-        List<Solution> result = new ArrayList<>();
-        List<MatrixEntry<PieceInfo>> solution = new ArrayList<>(PIECES.length);
-        search(result, solution);
-
-        return List.copyOf(result);
-    }
-
-    private boolean search(List<Solution> solutions, List<MatrixEntry<PieceInfo>> solution) {
-        if (head.getRight() == head) {
-            solutions.add(convertSolution(solution));
-            if (solutions.size() % 10 == 0) {
-                LOGGER.info("Found {} solutions so far.", solutions.size());
-            }
-            return false;
-        }
-        MatrixEntry<PieceInfo> c = selectNextColumn();
-        c.coverColumn();
-        MatrixEntry<PieceInfo> r = c.getLower();
-        while (r != c) {
-            solution.add(r);
-            MatrixEntry<PieceInfo> j = r.getRight();
-            while (j != r) {
-                j.coverColumn();
-                j = j.getRight();
-            }
-            if (search(solutions, solution)) return true;
-            /*r = */solution.removeLast();
-            //c = r.getColumnHeader();
-            j = r.getLeft();
-            while (j != r) {
-                j.uncoverColumn();
-                j = j.getLeft();
-            }
-            r = r.getLower();
-        }
-        c.uncoverColumn();
-        return false;
-    }
-
-    private Solution convertSolution(List<MatrixEntry<PieceInfo>> solution) {
+    private Solution convertSolution(List<PieceInfo> solution) {
         Entry[] result = new Entry[16];
-        for (MatrixEntry<PieceInfo> matrixEntry : solution) {
-            if (matrixEntry.getData().value() >= 0) {
-                int x = matrixEntry.getData().value() >> 10 & 0b11;
-                int y = matrixEntry.getData().value() >> 12 & 0b11;
-                int rotations = matrixEntry.getData().value() >> 8 & 0b11;
+        for (PieceInfo element : solution) {
+            if (element.value() >= 0) {
+                int x = element.value() >> 10 & 0b11;
+                int y = element.value() >> 12 & 0b11;
+                int rotations = element.value() >> 8 & 0b11;
                 if (result[x + y * 4] != null) {
                     LOGGER.error("Double entry found!");
                 }
-                int value = matrixEntry.getData().value() & 0b11111111;
+                int value = element.value() & 0b11111111;
                 int backRotatedValue = rotateValue(value, (4 - rotations) % 4);
                 result[x + y * 4] = new Entry(backRotatedValue, rotations);
             }
@@ -102,28 +54,9 @@ public class Puzzle {
     }
 
     private void initializeMatrix() {
-        createConstraintColumnHeads();
-
         createPieceChoices();
         createBorderStickChoice();
         createOptionalBorderNoseChoices();
-    }
-
-    private void createConstraintColumnHeads() {
-        for (int i = 0; i < columnHeads.length; i++) {
-            String info;
-            if (i < 80) {
-                info = "Nose " + i;
-            } else if (i < 96) {
-                info = "Field " + (i - 80) + " used";
-            } else if (i < 112) {
-                info = "Piece " + (i - 96) + " placed";
-            } else {
-                info = "Border sticks";
-            }
-            columnHeads[i] = new MatrixEntry<>();
-            head.insertBefore(columnHeads[i]);
-        }
     }
 
     private void createPieceChoices() {
@@ -159,36 +92,38 @@ public class Puzzle {
 
     private void createPieceChoiceForValue(int value, int pieceIdx, int x, int y) {
         int valueWithLocation = value | x << 10 | y << 12;
-        MatrixEntry<PieceInfo> pieceUsedColumnHead = columnHeads[96 + pieceIdx];
-        MatrixEntry<PieceInfo> firstEntry = createMatrixEntry(pieceUsedColumnHead, null, valueWithLocation);
 
-        MatrixEntry<PieceInfo> fieldUsedColumnHead = columnHeads[80 + x + y * 4];
-        createMatrixEntry(fieldUsedColumnHead, firstEntry, valueWithLocation);
+        List<Integer> indices = new ArrayList<>();
+        indices.add(96 + pieceIdx);
+        indices.add(80 + x + y * 4);
 
         int bitmask = 0b10000000;
         for (int noseIdx = 0; noseIdx < 8; noseIdx++) {
             if ((bitmask & value) != 0) {
-                createMatrixEntry(getNoseConstraintColumnHead(x, y, noseIdx), firstEntry, valueWithLocation);
+                indices.add(getNoseConstraintColumnHeadIndex(x, y, noseIdx));
             }
             bitmask >>= 1;
         }
+
+        indices.sort(Comparator.naturalOrder());
+        dlx.addChoice(createPieceInfo(valueWithLocation), indices);
     }
 
     private void createBorderStickChoice() {
         // border sticks are necessary
-        MatrixEntry<PieceInfo> firstEntry = createMatrixEntry(columnHeads[112], null);
-        createMatrixEntry(getNoseConstraintColumnHead(0, 0, 1), firstEntry);
-        createMatrixEntry(getNoseConstraintColumnHead(0, 0, 7), firstEntry);
-        createMatrixEntry(getNoseConstraintColumnHead(3, 0, 1), firstEntry);
-        createMatrixEntry(getNoseConstraintColumnHead(3, 0, 3), firstEntry);
-        createMatrixEntry(getNoseConstraintColumnHead(0, 3, 5), firstEntry);
-        createMatrixEntry(getNoseConstraintColumnHead(0, 3, 7), firstEntry);
-        createMatrixEntry(getNoseConstraintColumnHead(3, 3, 3), firstEntry);
-        createMatrixEntry(getNoseConstraintColumnHead(3, 3, 5), firstEntry);
-    }
-
-    private MatrixEntry<PieceInfo> getNoseConstraintColumnHead(int x, int y, int idx) {
-        return columnHeads[getNoseConstraintColumnHeadIndex(x, y, idx)];
+        List<Integer> indices = new ArrayList<>(List.of(
+                getNoseConstraintColumnHeadIndex(0, 0, 1),
+                getNoseConstraintColumnHeadIndex(0, 0, 7),
+                getNoseConstraintColumnHeadIndex(3, 0, 1),
+                getNoseConstraintColumnHeadIndex(3, 0, 3),
+                getNoseConstraintColumnHeadIndex(0, 3, 5),
+                getNoseConstraintColumnHeadIndex(0, 3, 7),
+                getNoseConstraintColumnHeadIndex(3, 3, 3),
+                getNoseConstraintColumnHeadIndex(3, 3, 5),
+                112
+        ));
+        indices.sort(Comparator.naturalOrder());
+        dlx.addChoice(new PieceInfo("border sticks", -1), indices);
     }
 
     int getNoseConstraintColumnHeadIndex(int x, int y, int idx) {
@@ -225,22 +160,18 @@ public class Puzzle {
         // simply create all optional border nose choices - superfluous ones get removed at first step through
         // border stick constraint
         for (int i = 0; i < 4; i++) {
-            createMatrixEntry(getNoseConstraintColumnHead(i, 0, 0), null);
-            createMatrixEntry(getNoseConstraintColumnHead(i, 0, 1), null);
-            createMatrixEntry(getNoseConstraintColumnHead(3, i, 2), null);
-            createMatrixEntry(getNoseConstraintColumnHead(3, i, 3), null);
-            createMatrixEntry(getNoseConstraintColumnHead(i, 3, 4), null);
-            createMatrixEntry(getNoseConstraintColumnHead(i, 3, 5), null);
-            createMatrixEntry(getNoseConstraintColumnHead(0, i, 6), null);
-            createMatrixEntry(getNoseConstraintColumnHead(0, i, 7), null);
+            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(i, 0, 0)));
+            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(i, 0, 1)));
+            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(3, i, 2)));
+            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(3, i, 3)));
+            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(i, 3, 4)));
+            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(i, 3, 5)));
+            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(0, i, 6)));
+            dlx.addChoice(createPieceInfo(-1), List.of(getNoseConstraintColumnHeadIndex(0, i, 7)));
         }
     }
 
-    private MatrixEntry<PieceInfo> createMatrixEntry(MatrixEntry<PieceInfo> columnHead, MatrixEntry<PieceInfo> choice) {
-        return createMatrixEntry(columnHead, choice, -1);
-    }
-
-    private MatrixEntry<PieceInfo> createMatrixEntry(MatrixEntry<PieceInfo> columnHead, MatrixEntry<PieceInfo> choice, int value) {
+    private PieceInfo createPieceInfo(int value) {
         String info;
         if (value == -1) {
             info = "Optional";
@@ -253,27 +184,7 @@ public class Puzzle {
             info = "x = " + x + "; y = " + y + "; "
                     + rotations + " rotations; value = " + toBinaryString(backRotatedValue);
         }
-        MatrixEntry<PieceInfo> e = new MatrixEntry<>(new PieceInfo(info, value), columnHead);
-        columnHead.insertAbove(e);
-        if (choice != null) {
-            choice.insertBefore(e);
-        }
-
-        return e;
-    }
-
-    private MatrixEntry<PieceInfo> selectNextColumn() {
-        MatrixEntry<PieceInfo> p = head.getRight();
-        MatrixEntry<PieceInfo> bestMatch = p;
-        int bestRowCount = p.getRowCount();
-        while (p != head && bestRowCount > 1) {
-            if (p.getRowCount() < bestRowCount) {
-                bestRowCount = p.getRowCount();
-                bestMatch = p;
-            }
-            p = p.getRight();
-        }
-        return bestMatch;
+        return new PieceInfo(info, value);
     }
 
     public static class Solution {

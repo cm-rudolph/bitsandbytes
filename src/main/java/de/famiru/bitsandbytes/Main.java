@@ -7,18 +7,15 @@ import org.apache.logging.log4j.Logger;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 public class Main {
     private static final Logger LOGGER = LogManager.getLogger(Main.class);
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException {
+    public static void main(String[] args) {
         Instant start = Instant.now();
         Puzzle puzzle = new Puzzle();
         Instant initialized = Instant.now();
-        Future<Collection<Puzzle.Solution>> collectionFuture = puzzle.calculateSolution();
-        Collection<Puzzle.Solution> solutions = collectionFuture.get();
+        Collection<Puzzle.Solution> solutions = puzzle.calculateSolution();
         Instant done = Instant.now();
 
         LOGGER.info("Initialization took {}", Duration.between(start, initialized));
