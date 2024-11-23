@@ -1,6 +1,7 @@
 package de.famiru.bitsandbytes.exactcover;
 
 import de.famiru.dlx.Dlx;
+import de.famiru.dlx.DlxBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,8 +21,15 @@ public class Puzzle {
     private final Dlx<PieceInfo> dlx;
 
     public Puzzle() {
-        dlx = new Dlx<>(113, getOptionalBorderNoseChoiceIndices(), 1, true, 1000);
-        initializeMatrix();
+        DlxBuilder<PieceInfo> builder = Dlx.builder()
+                .numberOfConstraints(113, getOptionalBorderNoseChoiceIndices())
+                .enableMultithreading(1)
+                .countAllSolutions(true)
+                .createChoiceBuilder();
+
+        initializeMatrix(builder);
+
+        dlx = builder.build();
     }
 
     private static String toBinaryString(int value) {
@@ -54,26 +62,26 @@ public class Puzzle {
         return new Solution(result);
     }
 
-    private void initializeMatrix() {
-        createPieceChoices();
-        createBorderStickChoice();
+    private void initializeMatrix(DlxBuilder<PieceInfo> builder) {
+        createPieceChoices(builder);
+        createBorderStickChoice(builder);
     }
 
-    private void createPieceChoices() {
+    private void createPieceChoices(DlxBuilder<PieceInfo> builder) {
         for (int i = 0; i < PIECES.length; i++) {
             int value = PIECES[i];
-            createPieceChoicesForValue(value, i);
+            createPieceChoicesForValue(builder, value, i);
 
             int rotatedValue = rotateValue(value, 1);
             if (rotatedValue == value) continue;
-            createPieceChoicesForValue(rotatedValue | 1 << 8, i);
+            createPieceChoicesForValue(builder, rotatedValue | 1 << 8, i);
 
             rotatedValue = rotateValue(value, 2);
             if (rotatedValue == value) continue;
-            createPieceChoicesForValue(rotatedValue | 2 << 8, i);
+            createPieceChoicesForValue(builder, rotatedValue | 2 << 8, i);
 
             rotatedValue = rotateValue(value, 3);
-            createPieceChoicesForValue(rotatedValue | 3 << 8, i);
+            createPieceChoicesForValue(builder, rotatedValue | 3 << 8, i);
         }
     }
 
@@ -82,15 +90,15 @@ public class Puzzle {
         return (value >> shift) | (value << (8 - shift)) & 0b11111111;
     }
 
-    private void createPieceChoicesForValue(int value, int pieceIdx) {
+    private void createPieceChoicesForValue(DlxBuilder<PieceInfo> builder, int value, int pieceIdx) {
         for (int x = 0; x < 4; x++) {
             for (int y = 0; y < 4; y++) {
-                createPieceChoiceForValue(value, pieceIdx, x, y);
+                createPieceChoiceForValue(builder, value, pieceIdx, x, y);
             }
         }
     }
 
-    private void createPieceChoiceForValue(int value, int pieceIdx, int x, int y) {
+    private void createPieceChoiceForValue(DlxBuilder<PieceInfo> builder, int value, int pieceIdx, int x, int y) {
         int valueWithLocation = value | x << 10 | y << 12;
 
         List<Integer> indices = new ArrayList<>();
@@ -105,14 +113,12 @@ public class Puzzle {
             bitmask >>= 1;
         }
 
-        indices.sort(Comparator.naturalOrder());
-        dlx.addChoice(createPieceInfo(valueWithLocation), indices);
+        builder.addChoice(createPieceInfo(valueWithLocation), indices);
     }
 
-    private void createBorderStickChoice() {
-        List<Integer> indices = new ArrayList<>(getBorderStickIndices());
-        indices.sort(Comparator.naturalOrder());
-        dlx.addChoice(new PieceInfo("border sticks", -1), indices);
+    private void createBorderStickChoice(DlxBuilder<PieceInfo> builder) {
+        List<Integer> indices = getBorderStickIndices();
+        builder.addChoice(new PieceInfo("border sticks", -1), indices);
     }
 
     private List<Integer> getBorderStickIndices() {
